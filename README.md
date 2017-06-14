@@ -1,2 +1,3 @@
 # staff-review
-Small project initialized by Sytner Group LTD.
+Small project for Sytner Group LTD.
+This project is based on a web based staff review system. 
