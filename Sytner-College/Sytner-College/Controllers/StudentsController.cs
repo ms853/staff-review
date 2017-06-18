@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
-using SytnerCollege;
 using SytnerCollege.Data;
 using SytnerCollege.Models;
 
