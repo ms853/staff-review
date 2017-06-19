@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using SytnerCollege.Models;
+
 namespace SytnerCollege.Data
 {
     public class CollegeContext : DbContext 

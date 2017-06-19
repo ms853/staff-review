@@ -25,10 +25,10 @@ namespace SytnerCollege.Models
         [Display(Name = "Hire Date")]
         public DateTime HireDate { get; set; }
 
-        [Required]
+        
         [Display(Name = "Email Address")]
         [StringLength(254)]
-        public string emailAddress { get; set;}
+        public string EmailAddress { get; set;}
 
         [Display(Name = "Full Name")]
         public string FullName

@@ -59,8 +59,8 @@ namespace Sytner_College
                     template: "{controller=Home}/{action=Index}/{id?}");
             });
 
-            //Here I will initialize the database by calling the method from my Database Initialization class.
-            DbInitializer.Initialize(context);
+
+            DbInitializer.Initialize(context); 
         }
     }
 }

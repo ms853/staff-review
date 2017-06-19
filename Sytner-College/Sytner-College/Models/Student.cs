@@ -32,7 +32,7 @@ namespace SytnerCollege.Models
         [Display(Name = "Date Of Birth")]
         public DateTime DOB { get; set; } //Date of Birth 
 
-        public string fullName
+        public string FullName
         {
             get
             {
