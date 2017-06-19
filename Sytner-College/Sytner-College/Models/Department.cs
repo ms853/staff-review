@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -23,6 +22,9 @@ namespace SytnerCollege.Models
         public DateTime StartDate { get; set; }
 
         public int? LecturerID { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } //This attribute specifies that this column will be included in the Where clause of Update and Delete commands sent to the database
 
         public Lecturer Administrator { get; set; }
         public ICollection<Course> Courses { get; set; }
