@@ -36,6 +36,7 @@ namespace Sytner_College.Controllers
 
             var department = await _context.Departments
                 .Include(d => d.Administrator)
+                .AsNoTracking()
                 .SingleOrDefaultAsync(m => m.DepartmentID == id);
             if (department == null)
             {
@@ -48,7 +49,7 @@ namespace Sytner_College.Controllers
         // GET: Departments/Create
         public IActionResult Create()
         {
-            ViewData["LecturerID"] = new SelectList(_context.Lecturers, "ID", "FirstMidName");
+            ViewData["LecturerID"] = new SelectList(_context.Lecturers, "ID", "FullName");
             return View();
         }
 
@@ -65,7 +66,8 @@ namespace Sytner_College.Controllers
                 await _context.SaveChangesAsync();
                 return RedirectToAction("Index");
             }
-            ViewData["LecturerID"] = new SelectList(_context.Lecturers, "ID", "FirstMidName", department.LecturerID);
+            ViewData["LecturerID"] = new SelectList(_context.Lecturers, "ID", "FullName", department.LecturerID);
+            
             return View(department);
         }
 
@@ -77,53 +79,109 @@ namespace Sytner_College.Controllers
                 return NotFound();
             }
 
-            var department = await _context.Departments.SingleOrDefaultAsync(m => m.DepartmentID == id);
+            var department = await _context.Departments
+                .Include(i => i.Administrator)
+                .AsNoTracking()
+                .SingleOrDefaultAsync(m => m.DepartmentID == id);
             if (department == null)
             {
                 return NotFound();
             }
-            ViewData["LecturerID"] = new SelectList(_context.Lecturers, "ID", "FirstMidName", department.LecturerID);
+            ViewData["LecturerID"] = new SelectList(_context.Lecturers, "ID", "FullName", department.LecturerID);
             return View(department);
         }
 
+        //This method inhibits multiple clients from altering the department infromation at the same time.  
         // POST: Departments/Edit/5
-        // To protect from overposting attacks, please enable the specific properties you want to bind to, for 
-        // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("DepartmentID,Name,Budget,StartDate,LecturerID,RowVersion")] Department department)
+        public async Task<IActionResult> Edit(int? id, byte[] rowVersion)
         {
-            if (id != department.DepartmentID)
+            if (id == null)
             {
-                return NotFound();
+                return NotFound(); //404 response is generated when the page requested is not found.
             }
 
-            if (ModelState.IsValid)
+            var departmentToUpdate = await _context.Departments.Include(i => i.Administrator).SingleOrDefaultAsync(m => m.DepartmentID == id);
+
+            if (departmentToUpdate == null)
+            {
+                Department deletedDepartment = new Department();
+                await TryUpdateModelAsync(deletedDepartment);
+                ModelState.AddModelError(string.Empty,
+                    "Unable to save changes. The department was deleted by another user.");
+                ViewData["InstructorID"] = new SelectList(_context.Lecturers, "ID", "FullName", deletedDepartment.LecturerID);
+                return View(deletedDepartment);
+            }
+
+            _context.Entry(departmentToUpdate).Property("RowVersion").OriginalValue = rowVersion;
+
+            if (await TryUpdateModelAsync<Department>(
+                departmentToUpdate,
+                "",
+                s => s.Name, s => s.StartDate, s => s.Budget, s => s.LecturerID))
             {
                 try
                 {
-                    _context.Update(department);
                     await _context.SaveChangesAsync();
+                    return RedirectToAction("Index");
                 }
-                catch (DbUpdateConcurrencyException)
+                catch (DbUpdateConcurrencyException ex)
                 {
-                    if (!DepartmentExists(department.DepartmentID))
+                    var exceptionEntry = ex.Entries.Single();
+                    var clientValues = (Department)exceptionEntry.Entity;
+                    var databaseEntry = exceptionEntry.GetDatabaseValues();
+                    if (databaseEntry == null)
                     {
-                        return NotFound();
+                        ModelState.AddModelError(string.Empty,
+                            "Unable to save changes. The department was deleted by another user.");
                     }
                     else
                     {
-                        throw;
+                        var databaseValues = (Department)databaseEntry.ToObject();
+
+                        if (databaseValues.Name != clientValues.Name)
+                        {
+                            ModelState.AddModelError("Name", $"Current value: {databaseValues.Name}");
+                        }
+                        if (databaseValues.Budget != clientValues.Budget)
+                        {
+                            ModelState.AddModelError("Budget", $"Current value: {databaseValues.Budget:c}");
+                        }
+                        if (databaseValues.StartDate != clientValues.StartDate)
+                        {
+                            ModelState.AddModelError("StartDate", $"Current value: {databaseValues.StartDate:d}");
+                        }
+                        if (databaseValues.LecturerID != clientValues.LecturerID)
+                        {
+                            Lecturer databaseInstructor = await _context.Lecturers.SingleOrDefaultAsync(i => i.ID == databaseValues.LecturerID);
+                            ModelState.AddModelError("InstructorID", $"Current value: {databaseInstructor?.FullName}");
+                        }
+
+                        ModelState.AddModelError(string.Empty, "The record you attempted to edit "
+                                + "was modified by another user after you got the original value. The "
+                                + "edit operation was canceled and the current values in the database "
+                                + "have been displayed. If you still want to edit this record, click "
+                                + "the Save button again. Otherwise click the 'Back to List' hyperlink.");
+                        departmentToUpdate.RowVersion = (byte[])databaseValues.RowVersion;
+                        ModelState.Remove("RowVersion");
                     }
                 }
-                return RedirectToAction("Index");
             }
-            ViewData["LecturerID"] = new SelectList(_context.Lecturers, "ID", "FirstMidName", department.LecturerID);
-            return View(department);
+            ViewData["InstructorID"] = new SelectList(_context.Lecturers, "ID", "FullName", departmentToUpdate.LecturerID);
+            return View(departmentToUpdate);
         }
 
+        /*When the HttpGet Delete method displays the confirmation view, 
+         * the view includes the original RowVersion value in a hidden field. 
+         * That value is then available to the HttpPost Delete method that's called when the user confirms the deletion. 
+         * 
+         *  The HttpGet Delete method is called with an error flag set to true, when the SQL Command returns with no rows affected.
+         *  This occurs if the row is changed before the delete confirmation page is shown. 
+         */
+
         // GET: Departments/Delete/5
-        public async Task<IActionResult> Delete(int? id)
+        public async Task<IActionResult> Delete(int? id, bool? concurrencyError)
         {
             if (id == null)
             {
@@ -135,7 +193,21 @@ namespace Sytner_College.Controllers
                 .SingleOrDefaultAsync(m => m.DepartmentID == id);
             if (department == null)
             {
+                if (concurrencyError.GetValueOrDefault())
+                {
+                    return RedirectToAction("Index");
+                }
                 return NotFound();
+            }
+
+            if (concurrencyError.GetValueOrDefault())
+            {
+                ViewData["ConcurrencyErrorMessage"] = "The record you attempted to delete "
+                    + "was modified by another user after you got the original values. "
+                    + "The delete operation was canceled and the current values in the "
+                    + "database have been displayed. If you still want to delete this "
+                    + "record, click the Delete button again. Otherwise "
+                    + "click the Back to List hyperlink.";
             }
 
             return View(department);
@@ -144,12 +216,26 @@ namespace Sytner_College.Controllers
         // POST: Departments/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
+        public async Task<IActionResult> Delete(Department department)
         {
-            var department = await _context.Departments.SingleOrDefaultAsync(m => m.DepartmentID == id);
-            _context.Departments.Remove(department);
-            await _context.SaveChangesAsync();
-            return RedirectToAction("Index");
+            try
+            {
+                /*If the department is already deleted, 
+                 * the AnyAsync method returns false and the application just goes back to the Index method.
+                 */
+                if (await _context.Departments.AnyAsync(m => m.DepartmentID == department.DepartmentID))
+                {
+                    _context.Departments.Remove(department);
+                    await _context.SaveChangesAsync();
+                }
+                return RedirectToAction("Index");
+            }
+            catch (DbUpdateConcurrencyException /* ex */)
+            {
+                //Log the error (uncomment ex variable name and write a log.)
+                return RedirectToAction("Delete", new { concurrencyError = true, id = department.DepartmentID });
+            }
+
         }
 
         private bool DepartmentExists(int id)

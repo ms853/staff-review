@@ -3,7 +3,7 @@ using SytnerCollege.Models;
 
 namespace SytnerCollege.Data
 {
-    public class CollegeContext : DbContext 
+    public class CollegeContext : DbContext
     {
         public CollegeContext(DbContextOptions<CollegeContext> options) : base(options)
         {
